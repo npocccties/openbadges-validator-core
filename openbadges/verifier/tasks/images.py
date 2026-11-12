@@ -13,6 +13,7 @@ from .task_types import IMAGE_VALIDATION
 from .utils import (task_result, abbreviate_value,
                     abbreviate_node_id as abv_node,
                     is_data_uri)
+from ..fetch_policy import apply_fetch_policy
 
 def validate_image(state, task_meta, **options):
     try:
@@ -32,6 +33,7 @@ def validate_image(state, task_meta, **options):
                 backend=options['cache_backend'], expire_after=options.get('cache_expire_after', 300))
         else:
             session = requests.Session()
+        apply_fetch_policy(session)
     except (IndexError, TypeError, KeyError):
         raise TaskPrerequisitesError()
 

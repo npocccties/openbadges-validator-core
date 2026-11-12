@@ -3,7 +3,15 @@ import json
 import six
 
 from openbadges.verifier import verify
+from openbadges.verifier.fetch_policy import ALLOWED_FETCH_HOSTS_ENV, get_allowed_hosts
+from openbadges.verifier.logger import logger
 
+
+if get_allowed_hosts() is None:
+    logger.warning(
+        "%s is not set: the verifier may fetch resources from any host. "
+        "Set it to a comma-separated list of allowed hosts to prevent server-side request forgery.",
+        ALLOWED_FETCH_HOSTS_ENV)
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 4 * 1024 * 1024  # 4mb file upload limit

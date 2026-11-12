@@ -37,6 +37,16 @@ In order to run the server, activate your environment, navigate to the folder th
 
 A local server will start up on the development port 5000 (by default), which you can access from your browser or other HTTP client.
 
+### Restricting which hosts the validator may fetch from
+
+Badge data contains URLs (the assertion `id`, the BadgeClass, the Issuer, images, extension contexts) that the validator dereferences. When the validator runs inside a private network, set the `ALLOWED_FETCH_HOSTS` environment variable to prevent it from being used to reach internal services (server-side request forgery):
+
+`ALLOWED_FETCH_HOSTS=lms.example.org,lms2.example.org`
+
+When set, every request, including each redirect hop, must use `https`, the default port 443, and a host that exactly matches one of the listed names (case-insensitive; no subdomain or suffix matching). Other requests fail with `FetchNotAllowedError` without being sent. When unset or empty, all hosts are allowed and the server logs a warning at startup.
+
+The Open Badges 2.0 JSON-LD context (`https://w3id.org/openbadges/v2`) is served from a bundled copy and never fetched, so it does not need to be listed.
+
 ### Interpreting the results
 
 The results returned by the validator is a JSON object. (If you are using a user interface of some kind, you may not see this.) Depending on your use case, you may only be interested in a few parts of this object. The overall structure of the returned object is

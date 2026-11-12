@@ -14,6 +14,7 @@ import requests
 import requests_cache
 from pyld.jsonld import JsonLdError
 
+from .fetch_policy import apply_fetch_policy
 from .openbadges_context import OPENBADGES_CONTEXT_V2_DICT, OPENBADGES_CONTEXT_V2_URI
 
 
@@ -34,6 +35,7 @@ class CachableDocumentLoader(object):
             self.session = requests_cache.CachedSession(backend=backend, expire_after=expire_after)
         else:
             self.session = requests.Session()
+        apply_fetch_policy(self.session)
 
     def __call__(self, url):
         try:
