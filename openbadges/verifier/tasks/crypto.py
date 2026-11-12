@@ -55,7 +55,8 @@ def verify_jws_signature(state, task_meta, **options):
     ]
 
     key = RSA.import_key(public_pem)
-    jwkkey = jwk.construct(key, 'RS256').to_dict()
+    # python-jose 3.4+ no longer accepts PyCryptodome key objects; pass PEM instead
+    jwkkey = jwk.construct(key.export_key('PEM'), 'RS256').to_dict()
 
     try:
         jws.verify(data, jwkkey, None)

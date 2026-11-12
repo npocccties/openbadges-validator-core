@@ -60,7 +60,7 @@ class JwsVerificationTests(unittest.TestCase):
             'badge': self.badgeclass
         }
 
-        self.signature = jws.sign(self.assertion, self.key, algorithm='RS256')
+        self.signature = jws.sign(self.assertion, self.key.export_key(), algorithm='RS256')
 
         self.state = {
             'graph': [self.signing_key_doc, self.issuer_data, self.badgeclass,
@@ -84,7 +84,7 @@ class JwsVerificationTests(unittest.TestCase):
         self.assertEqual(len(actions), 2)
 
         # Construct an invalid signature by adding to payload after signing, one theoretical attack.
-        signed = jws.sign(self.assertion, self.key, algorithm='RS256')
+        signed = jws.sign(self.assertion, self.key.export_key(), algorithm='RS256')
         self.assertion_data['evidence'] = 'http://hahafakeinserteddata.com'
 
         encoded_separator = '.'
@@ -205,7 +205,7 @@ class JwsFullVerifyTests(unittest.TestCase):
         for doc in [input_badgeclass, input_issuer, cryptographic_key_doc]:
             responses.add(responses.GET, doc['id'], json=doc, status=200)
 
-        signature = jws.sign(input_assertion, key, algorithm='RS256')
+        signature = jws.sign(input_assertion, key.export_key(), algorithm='RS256')
 
         response = verify(signature, use_cache=False)
 
@@ -246,7 +246,7 @@ class JwsFullVerifyTests(unittest.TestCase):
 
         header = {'alg': 'RS256'}
         payload = json.dumps(input_assertion).encode()
-        signature = jws.sign(input_assertion, key, algorithm='RS256')
+        signature = jws.sign(input_assertion, key.export_key(), algorithm='RS256')
 
         response = verify(signature, use_cache=False)
 
@@ -288,7 +288,7 @@ class JwsFullVerifyTests(unittest.TestCase):
         for doc in [input_assertion, input_badgeclass, input_issuer, cryptographic_key_doc, revocation_list]:
             responses.add(responses.GET, doc['id'], json=doc, status=200)
 
-        signature = jws.sign(input_assertion, key, algorithm='RS256')
+        signature = jws.sign(input_assertion, key.export_key(), algorithm='RS256')
 
         response = verify(signature, use_cache=False)
         self.assertFalse(response['report']['valid'])

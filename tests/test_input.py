@@ -168,7 +168,7 @@ class InputJwsTests(unittest.TestCase):
             'badge': '_:b1'
         }
 
-        self.signed_assertion = jws.sign(self.assertion_data, self.private_key, algorithm='RS256')
+        self.signed_assertion = jws.sign(self.assertion_data, self.private_key.export_key(), algorithm='RS256')
 
         self.state = {
             'graph': [self.signing_key_doc, self.issuer_data, self.badgeclass,
