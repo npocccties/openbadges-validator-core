@@ -4,6 +4,7 @@ from requests_cache import CachedSession
 import responses
 import unittest
 
+from openbadges.verifier.openbadges_context import OPENBADGES_CONTEXT_V2_DICT, OPENBADGES_CONTEXT_V2_URI
 from openbadges.verifier.utils import CachableDocumentLoader
 
 try:
@@ -101,3 +102,42 @@ class DocumentLoaderTests(unittest.TestCase):
         # second compaction should have built from the cache
         self.assertEqual(first_compacted['verification']['type'],
                          second_compacted['verification']['type'])
+
+
+class BundledContextTests(unittest.TestCase):
+    @responses.activate
+    def test_obv2_context_is_served_without_network(self):
+        # No mocks registered: any HTTP request would raise ConnectionError.
+        for use_cache in (True, False):
+            loadurl = CachableDocumentLoader(use_cache=use_cache)
+            document = loadurl(OPENBADGES_CONTEXT_V2_URI)
+
+            self.assertEqual(json.loads(document['document']), OPENBADGES_CONTEXT_V2_DICT)
+            self.assertEqual(document['documentUrl'], OPENBADGES_CONTEXT_V2_URI)
+            self.assertIn(OPENBADGES_CONTEXT_V2_URI, loadurl.contexts)
+        self.assertEqual(len(responses.calls), 0)
+
+    @responses.activate
+    def test_compaction_works_without_network(self):
+        assertion_data = json.loads(test_components['2_0_basic_assertion'])
+        loadurl = CachableDocumentLoader(use_cache=False)
+
+        compacted = jsonld.compact(
+            assertion_data, OPENBADGES_CONTEXT_V2_URI, options={'documentLoader': loadurl})
+
+        self.assertEqual(compacted['verification']['type'], 'HostedBadge')
+        self.assertEqual(len(responses.calls), 0)
+
+    @responses.activate
+    def test_other_context_urls_are_still_fetched(self):
+        url = 'https://example.org/extension/context.json'
+        body = json.dumps({'@context': {'example': 'https://example.org/terms#'}})
+        responses.add(responses.GET, url, body=body, status=200,
+                      content_type='application/ld+json')
+        loadurl = CachableDocumentLoader(use_cache=False)
+
+        document = loadurl(url)
+
+        self.assertEqual(document['document'], body)
+        self.assertEqual(len(responses.calls), 1)
+        self.assertIn(url, loadurl.contexts)

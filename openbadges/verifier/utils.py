@@ -14,6 +14,8 @@ import requests
 import requests_cache
 from pyld.jsonld import JsonLdError
 
+from .openbadges_context import OPENBADGES_CONTEXT_V2_DICT, OPENBADGES_CONTEXT_V2_URI
+
 
 MESSAGE_LEVEL_ERROR = 'ERROR'
 MESSAGE_LEVEL_WARNING = 'WARNING'
@@ -46,18 +48,28 @@ class CachableDocumentLoader(object):
                     'jsonld.InvalidUrl', {'url': url},
                     code='loading document failed')
 
-            response = self.session.get(
-                url, headers={'Accept': 'application/ld+json, application/json'})
+            if url == OPENBADGES_CONTEXT_V2_URI:
+                # Serve the bundled Open Badges 2.0 context instead of fetching it.
+                # The context is versioned and stable, so this removes the runtime
+                # dependency on w3id.org and its redirect target. Other URLs
+                # (e.g. extension contexts) are still fetched over the network.
+                doc = {'contextUrl': None, 'documentUrl': url,
+                       'document': json.dumps(OPENBADGES_CONTEXT_V2_DICT)}
+                if self.use_cache:
+                    doc['from_cache'] = True
+            else:
+                response = self.session.get(
+                    url, headers={'Accept': 'application/ld+json, application/json'})
 
-            doc = {'contextUrl': None, 'documentUrl': url, 'document': response.text}
+                doc = {'contextUrl': None, 'documentUrl': url, 'document': response.text}
 
-            if self.use_cache:
-                doc['from_cache'] = response.from_cache
-                self.session.remove_expired_responses()
+                if self.use_cache:
+                    doc['from_cache'] = response.from_cache
+                    self.session.remove_expired_responses()
 
             # Save URL for Potential Extension contexts.
             try:
-                data = json.loads(response.text)
+                data = json.loads(doc['document'])
                 context = data['@context']
                 if any([isinstance(el, dict) for el in list_of(context)]):
                     self.contexts.update([url])
