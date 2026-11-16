@@ -1,10 +1,17 @@
+import os
 import unittest
+
+try:
+    from unittest import mock
+except ImportError:
+    import mock
 
 import requests
 import responses
 
 from openbadges.verifier.actions.tasks import add_task
-from openbadges.verifier.fetch_policy import FetchNotAllowedError, TEMPORARY_FETCH_ERROR, is_temporary_http_status
+from openbadges.verifier.fetch_policy import (FETCH_TIMEOUT_ENV, FetchNotAllowedError, TEMPORARY_FETCH_ERROR,
+                                              apply_fetch_policy, get_fetch_timeout, is_temporary_http_status)
 from openbadges.verifier.tasks import task_named
 from openbadges.verifier.tasks.graph import fetch_http_node
 from openbadges.verifier.tasks.task_types import FETCH_HTTP_NODE, IMAGE_VALIDATION
@@ -92,3 +99,62 @@ class ImageTemporaryErrorTests(unittest.TestCase):
         self.assertFalse(success)
         self.assertNotIn(TEMPORARY_FETCH_ERROR, message)
         self.assertIn('FetchNotAllowedError', message)
+
+
+class FetchHttpNodeNetworkErrorTests(unittest.TestCase):
+    @responses.activate
+    def test_timeout_is_reported_as_temporary(self):
+        responses.add(responses.GET, ASSERTION_URL, body=requests.ReadTimeout('slow'))
+        success, message, actions = fetch_http_node({}, add_task(FETCH_HTTP_NODE, url=ASSERTION_URL))
+        self.assertFalse(success)
+        self.assertTrue(message.startswith(TEMPORARY_FETCH_ERROR), message)
+        self.assertIn('ReadTimeout', message)
+
+    @responses.activate
+    def test_connection_error_is_reported_as_temporary(self):
+        responses.add(responses.GET, ASSERTION_URL, body=requests.ConnectionError('refused'))
+        success, message, actions = fetch_http_node({}, add_task(FETCH_HTTP_NODE, url=ASSERTION_URL))
+        self.assertFalse(success)
+        self.assertTrue(message.startswith(TEMPORARY_FETCH_ERROR), message)
+
+    @responses.activate
+    def test_fetch_not_allowed_is_not_converted(self):
+        responses.add(responses.GET, ASSERTION_URL, body=FetchNotAllowedError('not allowed'))
+        with self.assertRaises(FetchNotAllowedError):
+            fetch_http_node({}, add_task(FETCH_HTTP_NODE, url=ASSERTION_URL))
+
+
+class FetchTimeoutTests(unittest.TestCase):
+    def setUp(self):
+        self._saved = os.environ.pop(FETCH_TIMEOUT_ENV, None)
+
+    def tearDown(self):
+        os.environ.pop(FETCH_TIMEOUT_ENV, None)
+        if self._saved is not None:
+            os.environ[FETCH_TIMEOUT_ENV] = self._saved
+
+    def test_default_timeout(self):
+        self.assertEqual(get_fetch_timeout(), 10.0)
+
+    def test_timeout_from_env(self):
+        os.environ[FETCH_TIMEOUT_ENV] = '3.5'
+        self.assertEqual(get_fetch_timeout(), 3.5)
+
+    def test_invalid_timeout_falls_back_to_default(self):
+        for value in ('abc', '0', '-1'):
+            os.environ[FETCH_TIMEOUT_ENV] = value
+            self.assertEqual(get_fetch_timeout(), 10.0, value)
+
+    def test_adapter_applies_timeout_when_none_given(self):
+        os.environ[FETCH_TIMEOUT_ENV] = '7'
+        seen = {}
+
+        def fake_send(self, request, *args, **kwargs):
+            seen['timeout'] = kwargs.get('timeout')
+            raise requests.ConnectionError('stop')
+
+        session = apply_fetch_policy(requests.Session())
+        with mock.patch('requests.adapters.HTTPAdapter.send', fake_send):
+            with self.assertRaises(requests.ConnectionError):
+                session.get('https://lms.example.org/x')
+        self.assertEqual(seen['timeout'], 7.0)

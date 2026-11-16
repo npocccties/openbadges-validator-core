@@ -25,7 +25,8 @@ from .task_types import (DETECT_AND_VALIDATE_NODE_CLASS, FETCH_HTTP_NODE, INTAKE
                          VALIDATE_EXPECTED_NODE_CLASS, VALIDATE_EXTENSION_NODE)
 from .utils import abbreviate_node_id as abv_node, filter_tasks, is_iri, is_url, task_result, URN_REGEX
 from .validation import OBClasses
-from ..fetch_policy import TEMPORARY_FETCH_ERROR, apply_fetch_policy, is_temporary_http_status
+from ..fetch_policy import (TEMPORARY_FETCH_ERROR, FetchNotAllowedError, apply_fetch_policy,
+                            is_temporary_http_status)
 
 
 def fetch_http_node(state, task_meta, **options):
@@ -38,9 +39,18 @@ def fetch_http_node(state, task_meta, **options):
         session = requests.Session()
     apply_fetch_policy(session)
 
-    result = session.get(
-        url, headers={'Accept': 'application/ld+json, application/json, image/png, image/svg+xml'}
-    )
+    try:
+        result = session.get(
+            url, headers={'Accept': 'application/ld+json, application/json, image/png, image/svg+xml'}
+        )
+    except FetchNotAllowedError:
+        # Not temporary: reported by the task runner with the exception name.
+        raise
+    except (requests.ConnectionError, requests.Timeout) as e:
+        return task_result(
+            success=False,
+            message="{}: {} when fetching url {}".format(TEMPORARY_FETCH_ERROR, type(e).__name__, url)
+        )
 
     if is_temporary_http_status(result.status_code):
         return task_result(

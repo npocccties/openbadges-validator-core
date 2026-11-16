@@ -60,11 +60,31 @@ def check_url_allowed(url):
         raise FetchNotAllowedError("Fetching URL is not allowed (port must be 443): {}".format(url))
 
 
+FETCH_TIMEOUT_ENV = 'FETCH_TIMEOUT'
+DEFAULT_FETCH_TIMEOUT = 10.0
+
+
+def get_fetch_timeout():
+    """Return the timeout in seconds for each outgoing request (FETCH_TIMEOUT, default 10)."""
+    value = os.environ.get(FETCH_TIMEOUT_ENV, '').strip()
+    try:
+        timeout = float(value) if value else DEFAULT_FETCH_TIMEOUT
+    except ValueError:
+        return DEFAULT_FETCH_TIMEOUT
+    return timeout if timeout > 0 else DEFAULT_FETCH_TIMEOUT
+
+
 class FetchPolicyAdapter(HTTPAdapter):
-    """Transport adapter that checks every outgoing request, including redirect hops."""
+    """Transport adapter that checks every outgoing request, including redirect hops.
+
+    It also applies a default timeout, so an issuer that accepts the connection but
+    never answers cannot hold a worker until the server-level timeout.
+    """
 
     def send(self, request, *args, **kwargs):
         check_url_allowed(request.url)
+        if kwargs.get('timeout') is None:
+            kwargs['timeout'] = get_fetch_timeout()
         return super(FetchPolicyAdapter, self).send(request, *args, **kwargs)
 
 

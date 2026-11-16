@@ -45,6 +45,8 @@ Badge data contains URLs (the assertion `id`, the BadgeClass, the Issuer, images
 
 When set, every request, including each redirect hop, must use `https`, the default port 443, and a host that exactly matches one of the listed names (case-insensitive; no subdomain or suffix matching). Other requests fail with `FetchNotAllowedError` without being sent. When unset or empty, all hosts are allowed and the server logs a warning at startup.
 
+Each outgoing request times out after `FETCH_TIMEOUT` seconds (default `10`). Connection errors, timeouts and HTTP 408/429/5xx responses from the issuer are reported with messages starting with `TemporaryFetchError`, so clients can retry later instead of treating the badge as invalid.
+
 The Open Badges 2.0 JSON-LD context (`https://w3id.org/openbadges/v2`) is served from a bundled copy and never fetched, so it does not need to be listed.
 
 ### Interpreting the results
