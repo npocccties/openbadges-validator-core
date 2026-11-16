@@ -74,3 +74,16 @@ def apply_fetch_policy(session):
     session.mount('https://', adapter)
     session.mount('http://', adapter)
     return session
+
+
+# Prefix for task messages that report a temporary failure to fetch a resource
+# (connection errors, timeouts, or HTTP 408/429/5xx from the issuer). Clients can
+# look for this marker to retry later instead of treating the badge as invalid.
+TEMPORARY_FETCH_ERROR = 'TemporaryFetchError'
+
+
+def is_temporary_http_status(status_code):
+    """Return True for HTTP status codes that indicate a temporary failure."""
+    if status_code is None:
+        return False
+    return status_code in (408, 429) or status_code >= 500

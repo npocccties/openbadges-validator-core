@@ -25,7 +25,7 @@ from .task_types import (DETECT_AND_VALIDATE_NODE_CLASS, FETCH_HTTP_NODE, INTAKE
                          VALIDATE_EXPECTED_NODE_CLASS, VALIDATE_EXTENSION_NODE)
 from .utils import abbreviate_node_id as abv_node, filter_tasks, is_iri, is_url, task_result, URN_REGEX
 from .validation import OBClasses
-from ..fetch_policy import apply_fetch_policy
+from ..fetch_policy import TEMPORARY_FETCH_ERROR, apply_fetch_policy, is_temporary_http_status
 
 
 def fetch_http_node(state, task_meta, **options):
@@ -41,6 +41,12 @@ def fetch_http_node(state, task_meta, **options):
     result = session.get(
         url, headers={'Accept': 'application/ld+json, application/json, image/png, image/svg+xml'}
     )
+
+    if is_temporary_http_status(result.status_code):
+        return task_result(
+            success=False,
+            message="{}: HTTP {} when fetching url {}".format(TEMPORARY_FETCH_ERROR, result.status_code, url)
+        )
 
     try:
         json.loads(result.text)

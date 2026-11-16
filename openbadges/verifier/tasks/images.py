@@ -13,7 +13,8 @@ from .task_types import IMAGE_VALIDATION
 from .utils import (task_result, abbreviate_value,
                     abbreviate_node_id as abv_node,
                     is_data_uri)
-from ..fetch_policy import apply_fetch_policy
+from ..fetch_policy import (TEMPORARY_FETCH_ERROR, FetchNotAllowedError, apply_fetch_policy,
+                            is_temporary_http_status)
 
 def validate_image(state, task_meta, **options):
     try:
@@ -80,7 +81,19 @@ def validate_image(state, task_meta, **options):
                 encoded_body = base64.b64encode(result.content)
                 data_uri = "data:{};base64,{}".format(content_type, encoded_body)
 
-            except (requests.ConnectionError, requests.HTTPError, KeyError):
+            except FetchNotAllowedError as e:
+                # Not temporary: the host is not in ALLOWED_FETCH_HOSTS.
+                return task_result(False, "Could not fetch image at {}: FetchNotAllowedError: {}".format(url, e))
+            except requests.HTTPError as e:
+                status = e.response.status_code if e.response is not None else None
+                if is_temporary_http_status(status):
+                    return task_result(False, "{}: HTTP {} when fetching image at {}".format(
+                        TEMPORARY_FETCH_ERROR, status, url))
+                return task_result(False, "Could not fetch image at {}".format(url))
+            except (requests.ConnectionError, requests.Timeout) as e:
+                return task_result(False, "{}: Could not fetch image at {} ({})".format(
+                    TEMPORARY_FETCH_ERROR, url, type(e).__name__))
+            except KeyError:
                 return task_result(False, "Could not fetch image at {}".format(url))
             else:
                 actions.append(store_original_resource(url, data_uri))
